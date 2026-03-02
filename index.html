@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout Jeopardy!</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0a1628;
+    --blue: #1a3a6e;
+    --gold: #f5c518;
+    --gold-dark: #c9a010;
+    --green: #2d7a3a;
+    --red: #c0392b;
+    --white: #f8f4e8;
+    --silver: #b0bec5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--navy);
+    color: var(--white);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 85% 80%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 20% 85%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(2px 2px at 60% 70%, rgba(245,197,24,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 15%, rgba(255,255,255,0.5) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  #app { position: relative; z-index: 1; }
+
+  header {
+    text-align: center;
+    padding: 16px 20px 6px;
+    background: linear-gradient(180deg, #000d1f 0%, transparent 100%);
+  }
+  header h1 {
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(2rem, 5vw, 3.8rem);
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(245,197,24,0.5), 3px 3px 0 var(--gold-dark);
+    line-height: 1;
+  }
+  #round-banner { text-align: center; padding: 6px 20px; }
+  #round-label {
+    display: inline-block;
+    font-family: 'Bebas Neue', cursive;
+    font-size: 1.3rem;
+    letter-spacing: 0.1em;
+    color: var(--navy);
+    background: var(--gold);
+    padding: 4px 20px;
+    border-radius: 30px;
+  }
+
+  #scoreboard { display: flex; justify-content: center; gap: 12px; padding: 10px 20px 4px; flex-wrap: wrap; }
+  .team-score { background: var(--blue); border: 2px solid rgba(245,197,24,0.3); border-radius: 12px; padding: 8px 16px; text-align: center; min-width: 100px; transition: all 0.3s; }
+  .team-score.active-team { border-color: var(--gold); box-shadow: 0 0 12px rgba(245,197,24,0.4); transform: scale(1.05); }
+  .team-name { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--silver); }
+  .team-points { font-family: 'Bebas Neue', cursive; font-size: 1.9rem; color: var(--gold); line-height: 1; }
+  .team-points.negative { color: var(--red); }
+  #turn-indicator { text-align: center; padding: 4px; font-size: 0.82rem; font-weight: 700; color: var(--gold); letter-spacing: 0.05em; min-height: 22px; }
+
+  #board-container { padding: 8px 12px 16px; overflow-x: auto; }
+  #board { display: grid; grid-template-columns: repeat(var(--cols, 5), 1fr); gap: 6px; max-width: 1080px; margin: 0 auto; }
+  .category-header {
+    background: var(--blue);
+    border: 2px solid rgba(245,197,24,0.4);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: clamp(0.52rem, 1.2vw, 0.72rem);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--white);
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.3;
+  }
+  .cell {
+    background: var(--blue);
+    border: 2px solid rgba(245,197,24,0.2);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(1.1rem, 2.6vw, 1.8rem);
+    color: var(--gold);
+    cursor: pointer;
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .cell:hover:not(.used) { background: #1e4a8a; border-color: var(--gold); transform: scale(1.03); box-shadow: 0 0 14px rgba(245,197,24,0.3); }
+  .cell.used { background: rgba(10,22,40,0.6); border-color: rgba(255,255,255,0.05); color: transparent; cursor: default; }
+  .cell.daily-double { background: var(--green); border-color: #52c266; }
+
+  #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,10,0.88); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+  #modal-overlay.open { display: flex; }
+  #modal { background: var(--blue); border: 3px solid var(--gold); border-radius: 20px; max-width: 620px; width: 100%; padding: 28px; text-align: center; box-shadow: 0 0 60px rgba(245,197,24,0.2); animation: popIn 0.25s ease; }
+  @keyframes popIn { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal-category { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: var(--gold); margin-bottom: 4px; }
+  .modal-points { font-family: 'Bebas Neue', cursive; font-size: 2.2rem; color: var(--gold); line-height: 1; margin-bottom: 14px; }
+  .modal-question { font-size: clamp(0.95rem, 2.2vw, 1.2rem); font-weight: 700; line-height: 1.5; color: var(--white); margin-bottom: 20px; min-height: 55px; }
+  .modal-answer { background: rgba(0,0,0,0.4); border-radius: 10px; padding: 12px; font-size: clamp(0.85rem, 1.8vw, 1rem); color: #a8e6b0; font-weight: 700; margin-bottom: 18px; display: none; }
+  .modal-answer.visible { display: block; }
+  .btn-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btn { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.85rem; padding: 9px 16px; border: none; border-radius: 10px; cursor: pointer; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.07em; }
+  .btn:hover { transform: scale(1.05); }
+  .btn-reveal { background: var(--gold); color: var(--navy); }
+  .btn-correct { background: var(--green); color: #fff; }
+  .btn-wrong { background: var(--red); color: #fff; }
+
+  #dd-splash { display: none; position: fixed; inset: 0; background: var(--green); z-index: 200; align-items: center; justify-content: center; flex-direction: column; }
+  #dd-splash.open { display: flex; }
+  #dd-splash h2 { font-family: 'Bebas Neue', cursive; font-size: clamp(4rem, 15vw, 8rem); color: var(--gold); text-shadow: 4px 4px 0 rgba(0,0,0,0.4); animation: pulse 0.5s ease infinite alternate; }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.04); } }
+  #dd-splash p { font-size: 1.1rem; font-weight: 700; margin-top: 8px; color: #fff; }
+
+  #round-transition { display: none; position: fixed; inset: 0; background: var(--navy); z-index: 250; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
+  #round-transition.open { display: flex; }
+  #round-transition h2 { font-family: 'Bebas Neue', cursive; font-size: clamp(2.5rem, 8vw, 5rem); color: var(--gold); text-shadow: 3px 3px 0 var(--gold-dark); margin-bottom: 8px; }
+  #round-transition .next-round-name { font-family: 'Bebas Neue', cursive; font-size: clamp(1.2rem, 4vw, 2.2rem); color: var(--white); margin-bottom: 20px; letter-spacing: 0.06em; }
+  .rt-scores { margin: 10px 0 24px; min-width: 260px; }
+  .rt-row { display: flex; justify-content: space-between; gap: 40px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 1.15rem; font-weight: 700; }
+  .rt-pts { color: var(--gold); }
+  .btn-next-round { background: var(--gold); color: var(--navy); font-size: 1rem; padding: 13px 30px; }
+
+  #win-screen { display: none; position: fixed; inset: 0; background: var(--navy); z-index: 300; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
+  #win-screen.open { display: flex; }
+  #win-screen h2 { font-family: 'Bebas Neue', cursive; font-size: clamp(3rem, 10vw, 6rem); color: var(--gold); text-shadow: 3px 3px 0 var(--gold-dark); }
+  .winner-name { font-size: clamp(1.5rem, 5vw, 3rem); font-weight: 800; color: #fff; margin: 10px 0 20px; }
+  #final-scores { margin: 16px 0; }
+  .fs-row { display: flex; justify-content: space-between; gap: 30px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 1.1rem; }
+  .btn-play-again { background: var(--gold); color: var(--navy); font-size: 1.1rem; padding: 14px 30px; margin-top: 20px; }
+  .scout-icon { font-size: 3rem; margin-bottom: 10px; }
+
+  #setup-screen { position: fixed; inset: 0; background: var(--navy); z-index: 400; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+  #setup-screen h2 { font-family: 'Bebas Neue', cursive; font-size: 3rem; color: var(--gold); margin-bottom: 8px; }
+  #setup-screen p { color: var(--silver); margin-bottom: 24px; font-size: 0.95rem; line-height: 1.6; }
+  .setup-teams { display: flex; flex-direction: column; gap: 10px; max-width: 360px; width: 100%; margin-bottom: 20px; }
+  .setup-teams input { background: var(--blue); border: 2px solid rgba(245,197,24,0.3); border-radius: 10px; padding: 10px 14px; font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700; color: var(--white); width: 100%; outline: none; }
+  .setup-teams input:focus { border-color: var(--gold); }
+  .setup-teams input::placeholder { color: rgba(255,255,255,0.3); }
+  .btn-start { background: var(--gold); color: var(--navy); font-size: 1.1rem; padding: 14px 36px; }
+  .round-preview { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
+  .rp-pill { background: var(--blue); border: 1px solid rgba(245,197,24,0.3); border-radius: 20px; padding: 5px 14px; font-size: 0.78rem; font-weight: 700; color: var(--silver); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="setup-screen">
+    <div class="scout-icon">⚜️</div>
+    <h2>Scout Jeopardy!</h2>
+    <p>AOL Den · 3-Round End of Year Review</p>
+    <div class="round-preview">
+      <span class="rp-pill">🐱 Round 1: Bobcat &amp; Basics</span>
+      <span class="rp-pill">🧭 Round 2: Core Adventures</span>
+      <span class="rp-pill">⚜️ Round 3: AOL &amp; Bridging</span>
+    </div>
+    <div class="setup-teams">
+      <input id="t1" placeholder="Team 1 Name" value="Wolves" maxlength="18">
+      <input id="t2" placeholder="Team 2 Name" value="Eagles" maxlength="18">
+      <input id="t3" placeholder="Team 3 (optional)" maxlength="18">
+    </div>
+    <button class="btn btn-start" onclick="startGame()">Let's Play! ⚜️</button>
+  </div>
+
+  <header><h1>⚜️ Scout Jeopardy! ⚜️</h1></header>
+  <div id="round-banner"><span id="round-label"></span></div>
+  <div id="scoreboard"></div>
+  <div id="turn-indicator"></div>
+  <div id="board-container"><div id="board"></div></div>
+
+  <div id="dd-splash"><h2>DAILY DOUBLE!</h2><p>Get ready...</p></div>
+
+  <div id="modal-overlay">
+    <div id="modal">
+      <div class="modal-category" id="modal-cat"></div>
+      <div class="modal-points" id="modal-pts"></div>
+      <div class="modal-question" id="modal-q"></div>
+      <div class="modal-answer" id="modal-a"></div>
+      <div class="btn-row" id="modal-btns"></div>
+    </div>
+  </div>
+
+  <div id="round-transition">
+    <div class="scout-icon">⚜️</div>
+    <h2 id="rt-title">Round 1 Complete!</h2>
+    <p style="color:var(--silver);font-size:0.85rem;margin-bottom:10px">Current Standings</p>
+    <div class="rt-scores" id="rt-scores"></div>
+    <div class="next-round-name" id="rt-next-name"></div>
+    <button class="btn btn-next-round" id="btn-next-round">Start Next Round →</button>
+  </div>
+
+  <div id="win-screen">
+    <div class="scout-icon">🏆</div>
+    <h2>Game Over!</h2>
+    <div class="winner-name" id="winner-name"></div>
+    <div id="final-scores"></div>
+    <button class="btn btn-play-again" onclick="location.reload()">Play Again</button>
+  </div>
+
+</div>
+<script src="questions.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
