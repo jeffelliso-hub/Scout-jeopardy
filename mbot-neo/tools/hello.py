@@ -27,6 +27,34 @@ import sys
 
 KNOWN_FIRMWARE = "44.01.009"     # from the boot banner probe2 caught
 
+# ---------------------------------------------------------------------------
+# Keep him awake.
+#
+# Opening this port with DTR/RTS asserted pins the ESP32's reset line and the
+# board sits there switched off - backlight on, screen blank, no menu. We hit
+# exactly that. Makeblock's library opens the port itself, so we patch
+# pyserial underneath it to release both lines the moment any port opens.
+# ---------------------------------------------------------------------------
+def _keep_him_awake():
+    try:
+        import serial
+    except ImportError:
+        return False
+    original = serial.Serial.__init__
+
+    def patched(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        try:
+            self.dtr = False
+            self.rts = False
+        except Exception:
+            pass
+
+    serial.Serial.__init__ = patched
+    return True
+
+
+
 
 class Timeout(Exception):
     pass
@@ -100,7 +128,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--move", action="store_true", help="also nudge the wheels")
     ap.add_argument("--api", action="store_true", help="dump the API surface")
+    ap.add_argument("--no-patch", action="store_true",
+                    help="do not suppress DTR/RTS (he may sit in reset)")
     args = ap.parse_args()
+
+    if not args.no_patch:
+        print("holding DTR/RTS low so the port cannot reset him" if _keep_him_awake()
+              else "pyserial missing - cannot protect against the reset line")
 
     try:
         import cyberpi
@@ -165,6 +199,8 @@ def main():
         print("\nWheels  skipped - add --move once he's on the floor")
 
     print("\nDone. Tell me what you SAW and HEARD, not just what printed.")
+    print("If his screen went blank, unplug the USB and power cycle - that")
+    print("restores him, and it means the reset line is still winning.")
 
 
 if __name__ == "__main__":

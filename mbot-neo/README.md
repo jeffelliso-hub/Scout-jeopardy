@@ -82,3 +82,7 @@ Nothing else here is built yet. The probe results decide the rest.
   protocol. `tools/probe2.py` established this from the boot banner.
 - Opening the serial port reboots him - DTR/RTS are wired to the reset line.
   Harmless, and it means a boot banner is available on demand.
+- Opening the USB serial port with DTR/RTS asserted pins the ESP32 in reset:
+  the backlight stays on, the screen goes blank, and no menu appears. Recovery
+  is unplug USB, power cycle. Every tool here releases both lines on open,
+  including underneath Makeblock's library, which opens the port itself.
