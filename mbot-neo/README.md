@@ -5,6 +5,7 @@ MicroPython, with no Makeblock software anywhere in the loop.
 
 Working name is **Blip**. The intent is that the kid names him on first boot
 and he remembers it forever.
+and he remembers it forever.
 
 ## The idea
 
@@ -71,3 +72,13 @@ python3 tools/probe.py
 ```
 
 Nothing else here is built yet. The probe results decide the rest.
+
+## Decisions
+
+- Makeblock's `cyberpi` Python package is fair game as a dependency. The thing
+  being avoided is the *app*, not their code.
+- Firmware is Makeblock's own ESP-IDF build (v44.01.009, Jan 2022) on an
+  ESP32. There is no MicroPython REPL on the UART; the way in is their serial
+  protocol. `tools/probe2.py` established this from the boot banner.
+- Opening the serial port reboots him - DTR/RTS are wired to the reset line.
+  Harmless, and it means a boot banner is available on demand.
