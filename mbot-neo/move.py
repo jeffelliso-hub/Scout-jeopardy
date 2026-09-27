@@ -39,6 +39,25 @@ def main():
     print("\nEyes")
     print(f"  distance ahead  : {body.distance()} cm")
 
+    detached = (not shield) or str(shield).lower() in ("none", "0", "null")
+    if detached:
+        print("\n" + "!" * 56)
+        print("HE IS NOT ATTACHED TO HIS BODY.")
+        print("!" * 56)
+        print("The CyberPi - the clear module with the screen - is one piece.")
+        print("The blue chassis with the wheels, battery and ultrasonic eyes")
+        print("is another. The brain cannot see the chassis right now, which")
+        print("is why the battery reads 0, the eyes read 0 cm, and nothing")
+        print("can drive.")
+        print("")
+        print("  1. Slide the CyberPi into the slot on the blue robot body.")
+        print("  2. Switch the CHASSIS on - its own switch, not the CyberPi's.")
+        print("  3. Charge the chassis battery if it has been sitting a while.")
+        print("")
+        print("Everything else works: screen, lights, speaker, microphone,")
+        print("and the tilt and shake sensors are all in the brain itself.")
+        return
+
     if not args.go:
         print("\nNothing moved. Put him on the floor, then: python3 move.py --go")
         return
