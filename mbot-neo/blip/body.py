@@ -9,25 +9,48 @@ import time
 
 
 def keep_him_awake():
-    """Release DTR/RTS on every serial open.
+    """Open serial ports without ever resetting him.
 
-    Learned on hardware: with those lines asserted the ESP32 sits in reset -
-    backlight on, screen blank, no menu, surviving a power cycle. Makeblock's
-    library opens the port itself, so we patch pyserial underneath it.
+    Two separate problems, both learned on hardware:
+
+    1. Opening the port with DTR/RTS asserted pins the ESP32 in reset. The
+       backlight stays lit, the screen goes blank, no menu, and it survives a
+       power cycle. Recovery is unplug USB, then power cycle.
+    2. Even a brief assertion while opening pulses reset, so he reboots at
+       the start of every program.
+
+    pyserial applies dtr/rts that were set while CLOSED at the moment it
+    opens, so we build the port closed, silence both lines, then open. The
+    patch sits under Makeblock's library, which opens ports itself.
     """
     try:
         import serial
     except ImportError:
         return False
+
     original = serial.Serial.__init__
 
     def patched(self, *args, **kwargs):
-        original(self, *args, **kwargs)
+        port = kwargs.pop("port", None)
+        if args:
+            port, args = args[0], args[1:]
+
+        original(self, None, *args, **kwargs)     # construct it closed
+
         try:
-            self.dtr = False
+            self.dtr = False                      # queued until open
             self.rts = False
         except Exception:
             pass
+
+        if port is not None:
+            self.port = port
+            try:
+                self.dtr = False
+                self.rts = False
+            except Exception:
+                pass
+            self.open()
 
     serial.Serial.__init__ = patched
     return True
