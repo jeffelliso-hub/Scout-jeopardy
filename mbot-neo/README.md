@@ -1,0 +1,73 @@
+# Blip
+
+An mBot Neo (Makeblock CyberPi + mBot2 chassis) programmed from scratch in
+MicroPython, with no Makeblock software anywhere in the loop.
+
+Working name is **Blip**. The intent is that the kid names him on first boot
+and he remembers it forever.
+
+## The idea
+
+Most AI robot projects put the brain in the cloud. The robot becomes a puppet:
+dead when the Wi-Fi drops, and starting from zero every single conversation.
+
+Here the relationship is inverted. **The cloud does not control him. It teaches
+him.**
+
+He has a *self* that lives on the board and survives power cycles - mood,
+energy, curiosity, boredom, who he's met, and a growing library of tricks he's
+been taught. Every cloud interaction ends by writing something durable into
+that local brain. He accumulates. The robot in November knows things he didn't
+in September, and knows them with the router unplugged.
+
+## Layers
+
+| Layer | Needs network? | What it is |
+|---|---|---|
+| **Body** | no | Motion, screen, lights, sound - as expressive primitives (`nod`, `sulk`, `startle`, `approach`), not raw motor calls |
+| **Self** | no | Persistent mood and memory on the board's filesystem. The reason he's a pet and not a program |
+| **Instincts** | no | The always-on loop. Reacts to approach, being picked up, lights out, loud noises, the edge of the table. Gets bored. Seeks attention |
+| **Tricks** | no | Learned behaviours, stored as *data* in a small interpreted format. Taught once, his forever |
+| **Games** | no | Hide and seek, freeze dance, red-light-green-light. He *proposes* these when bored and someone's nearby |
+| **Imagination** | yes | Speech in, a mind, and a reply expressed as body language - plus the ability to author new tricks |
+
+Everything above the last row works on a dead network. That's the whole point.
+
+## Two design decisions worth defending
+
+**He does not speak English.** Text-to-speech costs a cloud round-trip on every
+utterance and dies offline. Instead he has an expressive beep-language - pitch
+and rhythm carrying emotion - with words on his screen. Instant, offline,
+far more charming, and kids learn to read a character's tone. The cloud still
+understands *them* perfectly; he just answers in his own voice.
+
+**Tricks are data, never generated code.** A trick is a small interpreted
+structure, never `exec()` on model output. He cannot be bricked by something he
+was taught, and a trick can be inspected, edited, and shown to the kid as a
+thing they made.
+
+## Teaching him
+
+> "When I clap twice, spin around and beep like you're mad."
+
+That goes out once. What comes back is not an action - it's a trick, written
+into his filesystem, interpreted locally from then on. The kid programmed a
+robot by talking to it, and it still works next week with the internet off.
+
+## Ambient listening
+
+He listens continuously by choice. So: the screen and the LED ring make it
+*visible* when he's paying attention, and there's a hard mute. A kid should be
+able to see when a machine is listening to them.
+
+## Status
+
+Step 1 - reconnaissance. `tools/probe.py` reports what the board actually
+exposes over USB serial. It is read-only, and never touches firmware.
+
+```
+pip install pyserial
+python3 tools/probe.py
+```
+
+Nothing else here is built yet. The probe results decide the rest.
