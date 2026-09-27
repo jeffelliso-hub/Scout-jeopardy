@@ -56,7 +56,9 @@ def main():
         print("")
         print("Everything else works: screen, lights, speaker, microphone,")
         print("and the tilt and shake sensors are all in the brain itself.")
-        return
+        print("")
+        print("BUT: get_shield is known to misreport in cyberpi 0.0.7, so if")
+        print("his chassis lights are on, ignore this and try driving anyway.")
 
     if not args.go:
         print("\nNothing moved. Put him on the floor, then: python3 move.py --go")
