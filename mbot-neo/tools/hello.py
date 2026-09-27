@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
 """
-hello.py - first contact. Try to make the robot visibly do something.
+hello.py - first contact with the robot over Makeblock's serial protocol.
 
-Uses Makeblock's own `cyberpi` package over USB. Every call is guarded by a
-timeout and a try/except, so one broken API can't stop the rest - the point
-is to learn which calls this firmware actually honours.
+What probe3 taught us:
+  * CyberPi speaks the Halocode protocol (0xf3-framed packets).
+  * The library finds the board by the CH340 id 1A86:7523 - the port we found.
+  * There is a goto_online_mode(), and live commands very likely need it first.
+
+So: switch him online, prove a round trip with get_firmware_version() (we
+already know the true answer is 44.01.009, which makes it a real test), then
+try to make him visibly do something.
+
+Every call is timeout-guarded, so one unsupported API cannot stop the rest.
 
     pip install cyberpi pyserial
-    python3 hello.py            # lights, screen, sound, sensors
+    python3 hello.py            # lights, screen, sound, senses
     python3 hello.py --move     # also nudge the wheels (put him on the floor)
-
-Without --move he does not drive. Nothing is written to his filesystem.
+    python3 hello.py --api      # also dump the library's API surface
 """
 
 import argparse
+import os
+import re
 import signal
 import sys
 
-try:
-    from serial.tools import list_ports
-except ImportError:
-    list_ports = None
+KNOWN_FIRMWARE = "44.01.009"     # from the boot banner probe2 caught
 
 
 class Timeout(Exception):
@@ -38,8 +43,7 @@ except Exception:
     HAVE_ALARM = False
 
 
-def guarded(label, fn, secs=8):
-    """Run fn, surviving hangs and exceptions alike. Returns (ok, result)."""
+def guarded(label, fn, secs=10):
     if HAVE_ALARM:
         signal.alarm(secs)
     try:
@@ -49,7 +53,7 @@ def guarded(label, fn, secs=8):
         print(f"  OK    {label}" + (f"  -> {result!r}" if result is not None else ""))
         return True, result
     except Timeout:
-        print(f"  HANG  {label}  (no response in {secs}s)")
+        print(f"  HANG  {label}  (silent for {secs}s)")
         return False, None
     except Exception as e:
         if HAVE_ALARM:
@@ -58,87 +62,109 @@ def guarded(label, fn, secs=8):
         return False, None
 
 
-def show_ports():
-    if not list_ports:
-        print("  (pyserial missing - skipping port list)")
-        return
-    for p in list_ports.comports():
-        mark = " <-- CH340, this is him" if (p.vid, p.pid) == (0x1A86, 0x7523) else ""
-        print(f"  {p.device}  vid:pid={p.vid}:{p.pid}{mark}")
+def dump_api(cyberpi):
+    print("\n" + "=" * 60)
+    print("Library API")
+    print("=" * 60)
+    names = sorted(a for a in dir(cyberpi) if not a.startswith("_"))
+    print(f"\ncyberpi top level ({len(names)}):")
+    for i in range(0, len(names), 6):
+        print("  " + "  ".join(f"{n:<22}" for n in names[i:i + 6]))
 
-
-def describe(name, mod):
-    """Print a module's public API so we learn what this firmware offers."""
-    names = sorted(a for a in dir(mod) if not a.startswith("_"))
-    print(f"\n  {name} ({len(names)}): {names}")
-    for sub in ("display", "led", "audio", "console", "controller", "wifi", "cloud"):
-        obj = getattr(mod, sub, None)
+    for sub in ("display", "led", "audio", "console", "controller", "cloud",
+                "event", "chart", "barchart", "button", "humiture"):
+        obj = getattr(cyberpi, sub, None)
         if obj is not None:
             subnames = sorted(a for a in dir(obj) if not a.startswith("_"))
-            print(f"    .{sub}: {subnames}")
+            print(f"\ncyberpi.{sub}: {subnames}")
+
+    try:
+        print(f"\n----- {cyberpi.__file__} -----")
+        print(open(cyberpi.__file__).read())
+    except Exception as e:
+        print(f"  (could not read shim: {e})")
+
+    try:
+        import makeblock
+        api = os.path.join(os.path.dirname(makeblock.__file__),
+                           "modules", "cyberpi", "api_cyberpi_api.py")
+        sigs = re.findall(r"^\s*def\s+(\w+\s*\([^)]*\))", open(api).read(), re.M)
+        print(f"\n----- {len(sigs)} functions in api_cyberpi_api.py -----")
+        for s in sigs[:300]:
+            print("  " + " ".join(s.split()))
+    except Exception as e:
+        print(f"  (could not read api file: {e})")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--move", action="store_true", help="also nudge the wheels")
+    ap.add_argument("--api", action="store_true", help="dump the API surface")
     args = ap.parse_args()
 
-    print("Serial ports")
-    show_ports()
-
-    print("\nImporting")
     try:
         import cyberpi
-        print(f"  OK    cyberpi from {cyberpi.__file__}")
     except Exception as e:
-        sys.exit(f"  FAIL  cyberpi: {e}\n\nTry: pip install cyberpi")
+        sys.exit(f"cyberpi will not import: {e}\n\nTry: pip install cyberpi")
+    print(f"cyberpi loaded from {cyberpi.__file__}")
 
-    describe("cyberpi", cyberpi)
+    if args.api:
+        dump_api(cyberpi)
 
-    mbot2 = None
-    try:
-        import mbot2
-        print(f"\n  OK    mbot2 from {mbot2.__file__}")
-        describe("mbot2", mbot2)
-    except Exception as e:
-        print(f"\n  note  mbot2 not importable: {e}")
+    # ---- wake the link -----------------------------------------------------
+    print("\nHandshake")
+    guarded("goto_online_mode", lambda: cyberpi.goto_online_mode(), secs=15)
 
-    # ---- screen -----------------------------------------------------------
+    ok, ver = guarded("get_firmware_version", lambda: cyberpi.get_firmware_version(), secs=15)
+    if ok and ver:
+        match = "MATCHES the boot banner" if KNOWN_FIRMWARE in str(ver) else \
+                f"expected {KNOWN_FIRMWARE}"
+        print(f"        round trip is REAL - {match}")
+    guarded("get_name", lambda: cyberpi.get_name())
+    guarded("get_battery", lambda: cyberpi.get_battery())
+
+    # ---- screen ------------------------------------------------------------
     print("\nScreen  (watch his display)")
     guarded("display.show_label", lambda: cyberpi.display.show_label("BLIP", 16, "center"))
     guarded("console.println", lambda: cyberpi.console.println("hello"))
 
-    # ---- lights -----------------------------------------------------------
+    # ---- lights ------------------------------------------------------------
     print("\nLights  (watch the LED strip)")
     guarded("led.on(red)", lambda: cyberpi.led.on(255, 0, 0))
     guarded("led.show", lambda: cyberpi.led.show("red orange yellow green blue"))
-    guarded("led.off", lambda: cyberpi.led.off())
 
-    # ---- sound ------------------------------------------------------------
+    # ---- sound -------------------------------------------------------------
     print("\nSound  (listen)")
     guarded("audio.play('hello')", lambda: cyberpi.audio.play("hello"))
     guarded("audio.play_tone", lambda: cyberpi.audio.play_tone(523, 0.3))
-    guarded("audio.play_melody", lambda: cyberpi.audio.play_melody("up"))
 
-    # ---- senses -----------------------------------------------------------
-    print("\nSenses  (reading these is what makes instincts possible)")
-    for call in ("get_battery", "get_loudness", "get_bri", "get_shakeval",
-                 "get_roll", "get_pitch", "get_yaw"):
+    # ---- senses ------------------------------------------------------------
+    print("\nSenses  (these are what make instincts possible)")
+    for call in ("get_loudness", "get_bri", "get_shakeval", "get_roll",
+                 "get_pitch", "get_yaw"):
         fn = getattr(cyberpi, call, None)
         if fn is None:
             print(f"  --    {call} not present")
-            continue
-        guarded(call, fn)
+        else:
+            guarded(call, fn)
 
-    # ---- wheels -----------------------------------------------------------
-    if args.move and mbot2:
-        print("\nWheels  (he should twitch forward then back)")
-        guarded("forward", lambda: mbot2.forward(30, 0.4))
-        guarded("backward", lambda: mbot2.backward(30, 0.4))
-    elif mbot2:
-        print("\nWheels  skipped - pass --move when he's on the floor")
+    # ---- wheels ------------------------------------------------------------
+    if args.move:
+        print("\nWheels  (he should twitch forward, then back)")
+        moved = False
+        for name in ("mbot2", "mbuild"):
+            mod = getattr(cyberpi, name, None)
+            if mod is not None and hasattr(mod, "forward"):
+                guarded(f"{name}.forward", lambda m=mod: m.forward(30, 0.4))
+                guarded(f"{name}.backward", lambda m=mod: m.backward(30, 0.4))
+                moved = True
+        if not moved:
+            print("  --    no forward() found on cyberpi; run with --api and")
+            print("        I'll find the right call for the wheels")
+    else:
+        print("\nWheels  skipped - add --move once he's on the floor")
 
-    print("\nDone. Tell me what you actually saw and heard.")
+    print("\nDone. Tell me what you SAW and HEARD, not just what printed.")
 
 
 if __name__ == "__main__":
