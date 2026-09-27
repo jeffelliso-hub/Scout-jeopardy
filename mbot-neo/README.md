@@ -86,3 +86,23 @@ Nothing else here is built yet. The probe results decide the rest.
   the backlight stays on, the screen goes blank, and no menu appears. Recovery
   is unplug USB, power cycle. Every tool here releases both lines on open,
   including underneath Makeblock's library, which opens the port itself.
+
+## What the hardware actually gives us
+
+Confirmed against firmware 44.01.009 by round trip, not by documentation:
+
+- **Wheels** are `cyberpi.mbot2`: forward, backward, turn_left, turn_right,
+  straight, drive_power, plus encoder calls (`EM_get_angle`, `EM_get_speed`)
+  that read back real wheel movement. He can know how far he has gone.
+- **Eyes** are `cyberpi.ultrasonic2`; the floor sensor is
+  `cyberpi.quad_rgb_sensor` with line, colour and grey-level reads.
+- **Balance and handling**: is_shake, is_freefall, is_faceup, is_tiltleft,
+  get_roll/pitch/yaw. Enough to know when he has been picked up.
+- **Microphone** records on-board: `audio.record`, `stop_record`,
+  `play_record`.
+- **His speech endpoints are settable**: `set_recognition_url`,
+  `recognition_set_url`, `tts_set_url`, `translate_set_url`. He can listen
+  with his own microphone and send the audio to a server we run, which is the
+  whole conversation layer without Makeblock's cloud in the path.
+- `goto_offline_mode` exists alongside the online handshake, which is the
+  thread to pull for running standalone.

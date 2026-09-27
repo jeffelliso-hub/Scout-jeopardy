@@ -188,3 +188,71 @@ class Body:
         if not self.ok:
             return None
         return self._dispatch("shake", [lambda: cyberpi.get_shakeval()])
+
+    # -- power ------------------------------------------------------------
+    def extra_battery(self):
+        """The chassis battery - the one the wheels actually run on."""
+        if not self.ok:
+            return None
+        return self._dispatch("xbatt", [lambda: cyberpi.get_extra_battery()])
+
+    def shield(self):
+        if not self.ok:
+            return None
+        return self._dispatch("shield", [lambda: cyberpi.get_shield()])
+
+    # -- motion -----------------------------------------------------------
+    # His wheels are encoder motors on the mBot2 shield, reached through
+    # cyberpi.mbot2. Speeds stay modest: he lives on tables and short cords.
+    def ahead(self, speed=30, seconds=0.5):
+        if not self.ok:
+            print(f"[ahead] {speed} for {seconds}s")
+            return
+        self._dispatch("ahead", [
+            lambda v, t: cyberpi.mbot2.forward(v, t),
+            lambda v, t: cyberpi.mbot2.forward(v),
+        ], speed, seconds)
+
+    def back(self, speed=30, seconds=0.5):
+        if not self.ok:
+            print(f"[back] {speed} for {seconds}s")
+            return
+        self._dispatch("back", [
+            lambda v, t: cyberpi.mbot2.backward(v, t),
+            lambda v, t: cyberpi.mbot2.backward(v),
+        ], speed, seconds)
+
+    def spin(self, degrees=90):
+        """Positive turns right, negative turns left."""
+        if not self.ok:
+            print(f"[spin] {degrees}")
+            return
+        if degrees >= 0:
+            self._dispatch("right", [
+                lambda d: cyberpi.mbot2.turn_right(d),
+                lambda d: cyberpi.mbot2.turn(d),
+            ], abs(degrees))
+        else:
+            self._dispatch("left", [
+                lambda d: cyberpi.mbot2.turn_left(d),
+                lambda d: cyberpi.mbot2.turn(-d),
+            ], abs(degrees))
+
+    def halt(self):
+        if not self.ok:
+            return
+        self._dispatch("halt", [
+            lambda: cyberpi.mbot2.EM_stop("all"),
+            lambda: cyberpi.mbot2.EM_stop(),
+            lambda: cyberpi.mbot2.drive_power(0, 0),
+        ])
+
+    # -- eyes -------------------------------------------------------------
+    def distance(self):
+        """Centimetres to whatever is in front of him, via the ultrasonic."""
+        if not self.ok:
+            return None
+        return self._dispatch("dist", [
+            lambda: cyberpi.ultrasonic2.get(1),
+            lambda: cyberpi.ultrasonic2.get(),
+        ])
